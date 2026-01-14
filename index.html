@@ -7,6 +7,8 @@
     <!-- ExcelJS pour export Excel professionnel avec styles -->
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- jsPDF pour export PDF des rapports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
             --bg: #0f172a; --card: #1e293b; --primary: #6366f1;
@@ -520,6 +522,12 @@ void executeCommand(String cmd) {
             </div>
         </div>
         <div style="padding: 20px; overflow-y: auto; flex: 1;">
+            <label style="color:var(--accent); font-size:11px; font-weight:bold;">INFORMATIONS RAPPORT</label>
+            <div style="display:grid; grid-template-columns:2fr 1fr; gap:10px; margin-bottom:20px; margin-top:10px;">
+                <input type="text" id="edit-student-info" placeholder="Nom Prénom - Classe" style="width:100%; padding:10px; background:#0f172a; border:1px solid var(--accent); color:white; border-radius:8px;">
+                <input type="text" id="edit-project-number" placeholder="Projet n°" style="width:100%; padding:10px; background:#0f172a; border:1px solid var(--accent); color:white; border-radius:8px;">
+            </div>
+            
             <label style="color:var(--accent); font-size:11px; font-weight:bold;">PHOTO DU PROJET FINAL</label>
             <div id="proj-img-container" class="img-container" style="display:none;">
                 <img id="proj-img-preview" class="img-preview">
@@ -532,26 +540,14 @@ void executeCommand(String cmd) {
             </div>
             
             <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">SCHÉMA DE PRINCIPE (TINKERCAD)</label>
-            <div id="schema-principe-container" class="img-container" style="display:none;">
-                <img id="schema-principe-preview" class="img-preview">
-            </div>
-            <label for="schema-principe-upload" id="schema-principe-label" style="background:#334155; color:white; padding:12px; border-radius:10px; display:block; text-align:center; cursor:pointer; margin-bottom:10px; margin-top:10px;">🔌 Ajouter un schéma</label>
-            <input type="file" id="schema-principe-upload" accept="image/*" style="display:none" onchange="previewSchemaPrincipe()">
-            <div id="schema-principe-actions" style="display:none; gap:10px; margin-bottom:20px;">
-                <button onclick="document.getElementById('schema-principe-upload').click()" style="flex:1; background:var(--accent); color:white; border:none; padding:8px; border-radius:8px;">✏️ Modifier</button>
-                <button onclick="deleteImage('schemaPrincipe')" style="flex:1; background:var(--danger); color:white; border:none; padding:8px; border-radius:8px;">🗑️ Supprimer</button>
-            </div>
+            <div id="schemas-principe-list" style="display:grid; gap:10px; margin-bottom:10px;"></div>
+            <label for="schema-principe-upload" style="background:#334155; color:white; padding:12px; border-radius:10px; display:block; text-align:center; cursor:pointer; margin-bottom:10px; margin-top:10px;">🔌 Ajouter un schéma</label>
+            <input type="file" id="schema-principe-upload" accept="image/*" multiple style="display:none" onchange="addSchemasPrincipe()">
             
             <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">SCHÉMA PROTEUS</label>
-            <div id="schema-proteus-container" class="img-container" style="display:none;">
-                <img id="schema-proteus-preview" class="img-preview">
-            </div>
-            <label for="schema-proteus-upload" id="schema-proteus-label" style="background:#334155; color:white; padding:12px; border-radius:10px; display:block; text-align:center; cursor:pointer; margin-bottom:10px; margin-top:10px;">⚡ Ajouter un schéma</label>
-            <input type="file" id="schema-proteus-upload" accept="image/*" style="display:none" onchange="previewSchemaProteus()">
-            <div id="schema-proteus-actions" style="display:none; gap:10px; margin-bottom:20px;">
-                <button onclick="document.getElementById('schema-proteus-upload').click()" style="flex:1; background:var(--accent); color:white; border:none; padding:8px; border-radius:8px;">✏️ Modifier</button>
-                <button onclick="deleteImage('schemaProteus')" style="flex:1; background:var(--danger); color:white; border:none; padding:8px; border-radius:8px;">🗑️ Supprimer</button>
-            </div>
+            <div id="schemas-proteus-list" style="display:grid; gap:10px; margin-bottom:10px;"></div>
+            <label for="schema-proteus-upload" style="background:#334155; color:white; padding:12px; border-radius:10px; display:block; text-align:center; cursor:pointer; margin-bottom:10px; margin-top:10px;">⚡ Ajouter un schéma</label>
+            <input type="file" id="schema-proteus-upload" accept="image/*" multiple style="display:none" onchange="addSchemasProteus()">
             
             <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">CATÉGORIE</label>
             <select id="edit-category" style="width:100%; padding:10px; background:#0f172a; border:1px solid var(--accent); color:white; border-radius:8px; margin-bottom:15px;">
@@ -598,11 +594,14 @@ void executeCommand(String cmd) {
             <div id="project-components" style="margin-bottom:15px;"></div>
             <div style="display:flex; gap:10px; margin-bottom:20px;">
                 <button class="btn" style="background:var(--accent); flex:1;" onclick="openComponentPicker()">+ AJOUTER COMPOSANTS</button>
-                <button class="btn" style="background:#10b981; flex:1;" onclick="exportComponentsCSV()" title="Télécharger la liste en CSV">📊 EXPORT CSV</button>
+                <button class="btn" style="background:#8b5cf6; flex:1;" onclick="showPrerequisTable()" title="Tableau des prérequis pour le rapport">📋 PRÉREQUIS</button>
             </div>
             
             <label style="color:var(--accent); font-size:11px; font-weight:bold;">NOTES (PINOUT, SCHÉMA)</label>
             <textarea id="edit-notes" rows="4" placeholder="Notes..."></textarea>
+            
+            <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">BUT DU PROJET</label>
+            <textarea id="edit-goal" rows="3" placeholder="Décrivez l'objectif et les fonctionnalités de votre projet..."></textarea>
             
             <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">CODE ARDUINO</label>
             <div style="display:flex; gap:10px; margin-bottom:10px;">
@@ -615,7 +614,16 @@ Mode IDE : code complet avec setup/loop pour copier-coller dans l'IDE.
 Mode WiFi : commandes simples pour exécution distante (ex: led 13 on, delay 1000)."></textarea>
             <button class="btn" style="background:#22c55e; margin-top:10px; display:inline-block;" id="btn-copy" onclick="copyCode()">📋 COPIER LE CODE</button>
             <button class="btn" style="background:var(--primary); margin-top:10px; display:none;" id="btn-execute" onclick="envoyerCode()">📤 EXÉCUTER VIA WIFI</button>
-            <button class="btn" style="background:none; color:var(--danger); border:1px solid var(--danger);" onclick="deleteFolder()">SUPPRIMER LE PROJET</button>
+            
+            <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">CONCLUSION PERSONNELLE</label>
+            <textarea id="edit-conclusion" rows="3" placeholder="Réflexion personnelle sur le projet, difficultés rencontrées, améliorations possibles..."></textarea>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px;">
+                <button class="btn" style="background:#8b5cf6;" onclick="exportProjectPDF()">📄 GÉNÉRER RAPPORT PDF</button>
+                <button class="btn" style="background:#f59e0b;" onclick="exportExcelProfessional(db[currentIdx])">📊 LISTE ACHATS EXCEL</button>
+            </div>
+            
+            <button class="btn" style="background:none; color:var(--danger); border:1px solid var(--danger); margin-top:10px;" onclick="deleteFolder()">SUPPRIMER LE PROJET</button>
         </div>
     </div>
 
@@ -658,6 +666,16 @@ Mode WiFi : commandes simples pour exécution distante (ex: led 13 on, delay 100
             <div style="width:60px"></div>
         </div>
         <div id="component-detail-content" style="padding: 20px; overflow-y: auto; flex: 1;"></div>
+    </div>
+
+    <!-- Modale Tableau Prérequis -->
+    <div id="modal-prerequis" class="modal">
+        <div class="modal-header">
+            <button onclick="closeModal('modal-prerequis')" style="color:var(--primary); background:none; border:none;">← Retour</button>
+            <h3>📋 Tableau des Prérequis</h3>
+            <button onclick="copyPrerequisTable()" style="background:#10b981; color:white; border:none; padding:8px 15px; border-radius:8px; font-size:12px; font-weight:bold;">📋 COPIER</button>
+        </div>
+        <div id="prerequis-content" style="padding: 20px; overflow-y: auto; flex: 1;"></div>
     </div>
 
     <!-- Modale Liste Composants d'une catégorie -->

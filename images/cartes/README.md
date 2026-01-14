@@ -4,24 +4,20 @@ Ce dossier contient les images des cartes de développement et microcontrôleurs
 
 ## Structure des dossiers
 
-Chaque carte suit la même structure que les composants :
+Chaque carte suit cette structure :
 
 ```
 images/cartes/[NOM_CARTE]/
-├── symbole/
-│   └── symbole.png
-├── brochage/
-│   ├── 01-schema-complet.png
-│   ├── 02-schema-alternatif.png
-│   └── 03-schema-simplifie.png
+├── apercu/
+│   └── carte.png              ← Photo de la carte (affichée dans le PDF)
 └── empreinte/
-    ├── 01-vue-dessus.png
-    ├── 02-vue-cote.png
-    ├── 03-vue-face.png
-    ├── 04-dimensions.png
-    └── 05-vue-3d.png
+    ├── 01-vue-dessus.png      ← Vue de dessus avec dimensions
+    ├── 02-vue-cote.png        ← Vue de côté (optionnel)
+    └── 03-vue-face.png        ← Vue de face (optionnel)
 ```
 
 ## Cartes disponibles
 
+- **arduino-uno** - Arduino Uno R3 (14 broches numériques, 6 entrées analogiques)
 - **arduino-mega** - Arduino Mega 2560 (54 broches numériques, 16 entrées analogiques)
+- **arduino-nano-esp32** - Arduino Nano ESP32 (WiFi/Bluetooth intégré)

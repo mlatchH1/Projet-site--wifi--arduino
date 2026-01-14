@@ -233,7 +233,9 @@ const arduinoBoards = [
             'Bouton reset'
         ],
         pinout: 'Broches numériques: D0-D13 (D0/D1 réservés pour UART)\nBroches analogiques: A0-A5\nPWM: D3, D5, D6, D9, D10, D11\nSPI: D10 (SS), D11 (MOSI), D12 (MISO), D13 (SCK)\nI2C: A4 (SDA), A5 (SCL)',
-        applications: 'Parfait pour : robotique de base, domotique, projets éducatifs, prototypage rapide, contrôle de moteurs, capteurs simples.'
+        applications: 'Parfait pour : robotique de base, domotique, projets éducatifs, prototypage rapide, contrôle de moteurs, capteurs simples.',
+        apercu: 'images/cartes/arduino-uno/apercu/carte.png',
+        footprintFolder: 'images/cartes/arduino-uno/empreinte'
     },
     {
         id: 'mega',
@@ -265,7 +267,9 @@ const arduinoBoards = [
             'Compatible avec la plupart des shields Uno'
         ],
         pinout: 'Broches numériques: D0-D53\nBroches analogiques: A0-A15\nPWM: D2-D13, D44-D46\nUART0: D0 (RX0), D1 (TX0)\nUART1: D19 (RX1), D18 (TX1)\nUART2: D17 (RX2), D16 (TX2)\nUART3: D15 (RX3), D14 (TX3)\nSPI: D50 (MISO), D51 (MOSI), D52 (SCK), D53 (SS)\nI2C: D20 (SDA), D21 (SCL)',
-        applications: 'Idéal pour : imprimantes 3D, CNC, projets robotiques avancés, affichages multiples, nombreux capteurs/actionneurs, interfaces complexes, contrôle multi-moteurs.'
+        applications: 'Idéal pour : imprimantes 3D, CNC, projets robotiques avancés, affichages multiples, nombreux capteurs/actionneurs, interfaces complexes, contrôle multi-moteurs.',
+        apercu: 'images/cartes/arduino-mega/apercu/carte.png',
+        footprintFolder: 'images/cartes/arduino-mega/empreinte'
     },
     {
         id: 'nano-esp32',
@@ -297,7 +301,9 @@ const arduinoBoards = [
             '128 MB PSRAM pour l\'IA embarquée'
         ],
         pinout: 'Broches numériques: D0-D13, A0-A7\nTous les GPIO supportent PWM\nADC: 12 bits sur 8 canaux\nSPI: D13 (SCK), D12 (MISO), D11 (MOSI)\nI2C: A4 (SDA), A5 (SCL)\nUART: D0 (RX), D1 (TX)',
-        applications: 'Idéal pour : IoT, projets WiFi/Bluetooth, serveurs web embarqués, domotique connectée, surveillance à distance, applications ML/IA légères.'
+        applications: 'Idéal pour : IoT, projets WiFi/Bluetooth, serveurs web embarqués, domotique connectée, surveillance à distance, applications ML/IA légères.',
+        apercu: 'images/cartes/arduino-nano-esp32/apercu/carte.png',
+        footprintFolder: 'images/cartes/arduino-nano-esp32/empreinte'
     }
 ];
 
@@ -4493,6 +4499,10 @@ function openFolder(i) {
     document.getElementById('edit-title').innerText = f.name;
     document.getElementById('edit-notes').value = f.notes || "";
     document.getElementById('edit-code').value = f.code || "";
+    document.getElementById('edit-goal').value = f.goal || "";
+    document.getElementById('edit-conclusion').value = f.conclusion || "";
+    document.getElementById('edit-student-info').value = f.studentInfo || "";
+    document.getElementById('edit-project-number').value = f.projectNumber || "";
     
     // Charger catégorie, difficulté et tags
     document.getElementById('edit-category').value = f.category || 'other';
@@ -4514,29 +4524,25 @@ function openFolder(i) {
         document.getElementById('proj-img-actions').style.display = 'none';
     }
     
-    // Schéma de principe
-    if(f.schemaPrincipe) {
-        document.getElementById('schema-principe-preview').src = f.schemaPrincipe;
-        document.getElementById('schema-principe-container').style.display = 'block';
-        document.getElementById('schema-principe-label').style.display = 'none';
-        document.getElementById('schema-principe-actions').style.display = 'flex';
-    } else {
-        document.getElementById('schema-principe-container').style.display = 'none';
-        document.getElementById('schema-principe-label').style.display = 'block';
-        document.getElementById('schema-principe-actions').style.display = 'none';
+    // Migration des anciens schémas vers le nouveau format (compatibilité)
+    if (f.schemaPrincipe && !Array.isArray(f.schemasPrincipe)) {
+        f.schemasPrincipe = [f.schemaPrincipe];
+        delete f.schemaPrincipe;
+    }
+    if (f.schemaProteus && !Array.isArray(f.schemasProteus)) {
+        f.schemasProteus = [f.schemaProteus];
+        delete f.schemaProteus;
     }
     
-    // Schéma Proteus
-    if(f.schemaProteus) {
-        document.getElementById('schema-proteus-preview').src = f.schemaProteus;
-        document.getElementById('schema-proteus-container').style.display = 'block';
-        document.getElementById('schema-proteus-label').style.display = 'none';
-        document.getElementById('schema-proteus-actions').style.display = 'flex';
-    } else {
-        document.getElementById('schema-proteus-container').style.display = 'none';
-        document.getElementById('schema-proteus-label').style.display = 'block';
-        document.getElementById('schema-proteus-actions').style.display = 'none';
-    }
+    // Initialiser les tableaux s'ils n'existent pas
+    if (!f.schemasPrincipe) f.schemasPrincipe = [];
+    if (!f.schemasProteus) f.schemasProteus = [];
+    
+    // Afficher les schémas Tinkercad
+    renderSchemasPrincipe();
+    
+    // Afficher les schémas Proteus
+    renderSchemasProteus();
     
     // Afficher les composants du projet
     renderProjectComponents();
@@ -5103,6 +5109,10 @@ async function createFromTemplate(templateId) {
 async function saveProject() {
     db[currentIdx].notes = document.getElementById('edit-notes').value;
     db[currentIdx].code = document.getElementById('edit-code').value;
+    db[currentIdx].goal = document.getElementById('edit-goal').value;
+    db[currentIdx].conclusion = document.getElementById('edit-conclusion').value;
+    db[currentIdx].studentInfo = document.getElementById('edit-student-info').value;
+    db[currentIdx].projectNumber = document.getElementById('edit-project-number').value;
     db[currentIdx].category = document.getElementById('edit-category').value;
     db[currentIdx].difficulty = document.getElementById('edit-difficulty').value;
     
@@ -5179,63 +5189,619 @@ async function previewFile() {
     }
 }
 
-async function previewSchemaPrincipe() {
-    const file = document.getElementById('schema-principe-upload').files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            db[currentIdx].schemaPrincipe = e.target.result;
-            document.getElementById('schema-principe-preview').src = e.target.result;
-            document.getElementById('schema-principe-container').style.display = 'block';
-            document.getElementById('schema-principe-label').style.display = 'none';
-            document.getElementById('schema-principe-actions').style.display = 'flex';
-            await saveProjectToFolder(db[currentIdx]);
-        };
-        reader.readAsDataURL(file);
+async function addSchemasPrincipe() {
+    const files = document.getElementById('schema-principe-upload').files;
+    if (!files.length) return;
+    
+    // Initialiser le tableau si nécessaire
+    if (!Array.isArray(db[currentIdx].schemasPrincipe)) {
+        db[currentIdx].schemasPrincipe = [];
     }
+    
+    // Ajouter chaque nouvelle image
+    for (let file of files) {
+        const reader = new FileReader();
+        await new Promise((resolve) => {
+            reader.onload = async (e) => {
+                db[currentIdx].schemasPrincipe.push(e.target.result);
+                resolve();
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    document.getElementById('schema-principe-upload').value = '';
+    renderSchemasPrincipe();
+    await saveProjectToFolder(db[currentIdx]);
 }
 
-async function previewSchemaProteus() {
-    const file = document.getElementById('schema-proteus-upload').files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            db[currentIdx].schemaProteus = e.target.result;
-            document.getElementById('schema-proteus-preview').src = e.target.result;
-            document.getElementById('schema-proteus-container').style.display = 'block';
-            document.getElementById('schema-proteus-label').style.display = 'none';
-            document.getElementById('schema-proteus-actions').style.display = 'flex';
-            await saveProjectToFolder(db[currentIdx]);
-        };
-        reader.readAsDataURL(file);
+async function addSchemasProteus() {
+    const files = document.getElementById('schema-proteus-upload').files;
+    if (!files.length) return;
+    
+    // Initialiser le tableau si nécessaire
+    if (!Array.isArray(db[currentIdx].schemasProteus)) {
+        db[currentIdx].schemasProteus = [];
     }
+    
+    // Ajouter chaque nouvelle image
+    for (let file of files) {
+        const reader = new FileReader();
+        await new Promise((resolve) => {
+            reader.onload = async (e) => {
+                db[currentIdx].schemasProteus.push(e.target.result);
+                resolve();
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    document.getElementById('schema-proteus-upload').value = '';
+    renderSchemasProteus();
+    await saveProjectToFolder(db[currentIdx]);
+}
+
+function renderSchemasPrincipe() {
+    const container = document.getElementById('schemas-principe-list');
+    if (!db[currentIdx] || !Array.isArray(db[currentIdx].schemasPrincipe) || db[currentIdx].schemasPrincipe.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = db[currentIdx].schemasPrincipe.map((img, idx) => `
+        <div style="position:relative; border-radius:10px; overflow:hidden; border:2px solid var(--accent);">
+            <img src="${img}" style="width:100%; display:block;">
+            <div style="position:absolute; top:5px; right:5px; display:flex; gap:5px;">
+                <button onclick="deleteSchemaImage('principe', ${idx})" 
+                    style="background:var(--danger); color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:12px;">
+                    🗑️
+                </button>
+            </div>
+            <div style="position:absolute; bottom:5px; left:5px; background:rgba(0,0,0,0.7); color:white; padding:4px 8px; border-radius:4px; font-size:11px;">
+                Schéma ${idx + 1}/${db[currentIdx].schemasPrincipe.length}
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderSchemasProteus() {
+    const container = document.getElementById('schemas-proteus-list');
+    if (!db[currentIdx] || !Array.isArray(db[currentIdx].schemasProteus) || db[currentIdx].schemasProteus.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = db[currentIdx].schemasProteus.map((img, idx) => `
+        <div style="position:relative; border-radius:10px; overflow:hidden; border:2px solid var(--accent);">
+            <img src="${img}" style="width:100%; display:block;">
+            <div style="position:absolute; top:5px; right:5px; display:flex; gap:5px;">
+                <button onclick="deleteSchemaImage('proteus', ${idx})" 
+                    style="background:var(--danger); color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:12px;">
+                    🗑️
+                </button>
+            </div>
+            <div style="position:absolute; bottom:5px; left:5px; background:rgba(0,0,0,0.7); color:white; padding:4px 8px; border-radius:4px; font-size:11px;">
+                Schéma ${idx + 1}/${db[currentIdx].schemasProteus.length}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function deleteSchemaImage(type, idx) {
+    const result = await customConfirm('Supprimer cette image ?', 'Suppression');
+    if (!result) return;
+    
+    if (type === 'principe') {
+        db[currentIdx].schemasPrincipe.splice(idx, 1);
+        renderSchemasPrincipe();
+    } else if (type === 'proteus') {
+        db[currentIdx].schemasProteus.splice(idx, 1);
+        renderSchemasProteus();
+    }
+    
+    await saveProjectToFolder(db[currentIdx]);
 }
 
 async function deleteImage(type) {
     const result = await customConfirm('Supprimer cette image ?', 'Suppression');
     if (!result) return;
         
-        if (type === 'img') {
-            db[currentIdx].img = '';
-            document.getElementById('proj-img-container').style.display = 'none';
-            document.getElementById('proj-img-label').style.display = 'block';
-            document.getElementById('proj-img-actions').style.display = 'none';
-            document.getElementById('img-upload').value = '';
-        } else if (type === 'schemaPrincipe') {
-            db[currentIdx].schemaPrincipe = '';
-            document.getElementById('schema-principe-container').style.display = 'none';
-            document.getElementById('schema-principe-label').style.display = 'block';
-            document.getElementById('schema-principe-actions').style.display = 'none';
-            document.getElementById('schema-principe-upload').value = '';
-        } else if (type === 'schemaProteus') {
-            db[currentIdx].schemaProteus = '';
-            document.getElementById('schema-proteus-container').style.display = 'none';
-            document.getElementById('schema-proteus-label').style.display = 'block';
-            document.getElementById('schema-proteus-actions').style.display = 'none';
-            document.getElementById('schema-proteus-upload').value = '';
+    if (type === 'img') {
+        db[currentIdx].img = '';
+        document.getElementById('proj-img-container').style.display = 'none';
+        document.getElementById('proj-img-label').style.display = 'block';
+        document.getElementById('proj-img-actions').style.display = 'none';
+        document.getElementById('img-upload').value = '';
+        await saveProjectToFolder(db[currentIdx]);
+    }
+}
+
+// --- EXPORT PDF DU RAPPORT ---
+async function exportProjectPDF() {
+    const f = db[currentIdx];
+    if (!f) return;
+    
+    // Fonction pour charger une image locale en base64
+    async function loadImageAsBase64(path) {
+        try {
+            const response = await fetch(path);
+            const blob = await response.blob();
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(blob);
+            });
+        } catch (e) {
+            console.error(`Erreur chargement ${path}:`, e);
+            return null;
+        }
+    }
+    
+    // Précharger toutes les images des composants
+    const componentImages = {};
+    if (f.components && f.components.length > 0) {
+        for (let comp of f.components) {
+            const category = componentCategories.find(c => c.id === comp.categoryId);
+            const compId = comp.componentId || comp.id;
+            const fullComponent = category?.components.find(c => c.id === compId);
+            
+            if (fullComponent) {
+                const compKey = `${category.id}_${fullComponent.id}`;
+                componentImages[compKey] = {};
+                
+                // Charger le symbole
+                if (fullComponent.symbole) {
+                    componentImages[compKey].symbole = await loadImageAsBase64(fullComponent.symbole);
+                }
+                
+                // Charger l'empreinte - essayer plusieurs variantes
+                if (fullComponent.footprintFolder) {
+                    const possibleFiles = [
+                        '01-vue-dessus.png',
+                        '03-vue-face.png', 
+                        'Capture d\'écran 2026-01-05 150206.png',
+                        'empreinte.png',
+                        'footprint.png'
+                    ];
+                    for (let filename of possibleFiles) {
+                        const footprintPath = `${fullComponent.footprintFolder}/${filename}`;
+                        const result = await loadImageAsBase64(footprintPath);
+                        if (result) {
+                            componentImages[compKey].empreinte = result;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Précharger les images des cartes Arduino
+    const boardImages = {};
+    if (f.arduinoBoard) {
+        const board = arduinoBoards.find(b => b.id === f.arduinoBoard);
+        if (board) {
+            boardImages[board.id] = {};
+            
+            // Charger l'aperçu de la carte
+            if (board.apercu) {
+                boardImages[board.id].apercu = await loadImageAsBase64(board.apercu);
+            }
+            
+            // Charger l'empreinte de la carte
+            if (board.footprintFolder) {
+                const possibleFiles = [
+                    '01-vue-dessus.png',
+                    '03-vue-face.png',
+                    'carte.png',
+                    'empreinte.png'
+                ];
+                for (let filename of possibleFiles) {
+                    const footprintPath = `${board.footprintFolder}/${filename}`;
+                    const result = await loadImageAsBase64(footprintPath);
+                    if (result) {
+                        boardImages[board.id].empreinte = result;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 20;
+    const maxWidth = pageWidth - 2 * margin;
+    
+    // Fonction pour ajouter l'en-tête sur chaque page
+    function addHeader() {
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 0);
+        
+        // Gauche: Nom Prénom Classe (sur 2 lignes si nécessaire)
+        const studentInfo = f.studentInfo || '';
+        const infoLines = studentInfo.split('-').map(s => s.trim());
+        if (infoLines.length > 1) {
+            doc.text(infoLines[0], margin, 12);
+            doc.text(infoLines[1], margin, 17);
+        } else {
+            doc.text(studentInfo, margin, 15);
         }
         
-        await saveProjectToFolder(db[currentIdx]);
+        // Droite: Date
+        const dateStr = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'numeric', year: '2-digit' });
+        doc.text(dateStr, pageWidth - margin, 15, { align: 'right' });
+    }
+    
+    // Variables pour stocker les numéros de page (début et fin)
+    const pageNumbers = {
+        garde: { start: 1, end: 1 },
+        sommaire: { start: 2, end: 2 },
+        but: { start: 3, end: 0 },
+        principe: { start: 0, end: 0 },
+        proteus: { start: 0, end: 0 },
+        code: { start: 0, end: 0 },
+        conclusion: { start: 0, end: 0 }
+    };
+    
+    // ========== PAGE 1 - PAGE DE GARDE ==========
+    addHeader();
+    
+    // Titre centré
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    const titleLines = doc.splitTextToSize(f.name || "Projet Arduino", maxWidth - 40);
+    doc.text(titleLines, pageWidth / 2, 60, { align: "center" });
+    
+    // Image de couverture
+    if (f.img) {
+        try {
+            doc.addImage(f.img, 'JPEG', 40, 90, 130, 100);
+        } catch (e) {
+            console.log('Erreur image:', e);
+        }
+    }
+    
+    // Projet n°X dans un cadre
+    const projectLabel = `Projet n°${f.projectNumber || ''}`;
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    const labelWidth = doc.getTextWidth(projectLabel) + 20;
+    doc.rect((pageWidth - labelWidth) / 2, 220, labelWidth, 15);
+    doc.text(projectLabel, pageWidth / 2, 230, { align: "center" });
+    
+    // ========== PAGE 2 - TABLE DES MATIÈRES (à remplir plus tard) ==========
+    doc.addPage();
+    addHeader();
+    let yPos = 40;
+    
+    // ========== PAGE 3 - BUT + PRÉREQUIS ==========
+    doc.addPage();
+    addHeader();
+    yPos = 35;
+    
+    // But du projet
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("But du projet n° :", margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    const goalText = f.goal || "Non renseigné";
+    const goalLines = doc.splitTextToSize(goalText, maxWidth);
+    doc.text(goalLines, margin, yPos);
+    yPos += goalLines.length * 6 + 15;
+    
+    // Prérequis (tableau)
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("prérequis :", margin, yPos);
+    yPos += 8;
+    
+    // En-têtes du tableau
+    const colWidths = [20, 45, 30, 25, 40, 30];
+    const colX = [margin, margin + 20, margin + 65, margin + 95, margin + 120, margin + 160];
+    const rowHeight = 8;
+    
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.rect(margin, yPos, pageWidth - 2 * margin, rowHeight);
+    
+    // Dessiner les colonnes
+    for (let i = 1; i < colX.length; i++) {
+        doc.line(colX[i], yPos, colX[i], yPos + rowHeight);
+    }
+    
+    doc.text("quantité", colX[0] + 2, yPos + 6);
+    doc.text("Composant", colX[1] + 2, yPos + 3);
+    doc.text("et", colX[1] + 2, yPos + 6);
+    doc.text("Référence", colX[1] + 2, yPos + 9);
+    doc.text("Donnée", colX[2] + 2, yPos + 6);
+    doc.text("symbole", colX[3] + 2, yPos + 6);
+    doc.text("Empattement/", colX[4] + 2, yPos + 3);
+    doc.text("encombrement", colX[4] + 2, yPos + 6);
+    doc.text("Datasheet", colX[5] + 2, yPos + 6);
+    yPos += rowHeight;
+    
+    // Lignes de composants
+    doc.setFont("helvetica", "normal");
+    if (f.components && f.components.length > 0) {
+        f.components.forEach(comp => {
+            const category = componentCategories.find(c => c.id === comp.categoryId);
+            const compId = comp.componentId || comp.id;
+            const fullComponent = category?.components.find(c => c.id === compId);
+            
+            if (yPos > pageHeight - 30) {
+                doc.addPage();
+                addHeader();
+                yPos = 35;
+            }
+            
+            const cellHeight = 25;
+            doc.rect(margin, yPos, pageWidth - 2 * margin, cellHeight);
+            for (let i = 1; i < colX.length; i++) {
+                doc.line(colX[i], yPos, colX[i], yPos + cellHeight);
+            }
+            
+            // Quantité
+            doc.text(String(comp.quantity || 1), colX[0] + 8, yPos + 15);
+            
+            // Nom + référence
+            const compName = comp.name || '';
+            const nameLines = doc.splitTextToSize(compName, colWidths[1] - 4);
+            doc.text(nameLines, colX[1] + 2, yPos + 8);
+            
+            // Donnée
+            if (fullComponent && fullComponent.data) {
+                const dataText = fullComponent.data.value || '';
+                doc.text(dataText, colX[2] + 2, yPos + 15);
+            }
+            
+            // Symbole
+            const compKey = `${category.id}_${fullComponent.id}`;
+            if (componentImages[compKey] && componentImages[compKey].symbole) {
+                try {
+                    doc.addImage(componentImages[compKey].symbole, 'PNG', colX[3] + 2, yPos + 2, colWidths[3] - 4, cellHeight - 4);
+                } catch (e) {
+                    console.error("Erreur chargement symbole:", e);
+                }
+            }
+            
+            // Empattement/empreinte
+            if (componentImages[compKey] && componentImages[compKey].empreinte) {
+                try {
+                    doc.addImage(componentImages[compKey].empreinte, 'PNG', colX[4] + 2, yPos + 2, colWidths[4] - 4, cellHeight - 4);
+                } catch (e) {
+                    console.error("Erreur chargement empreinte:", e);
+                }
+            }
+
+            
+            // Note: Les images symbole/empattement nécessitent une conversion en base64
+            // Pour l'instant, les colonnes restent vides
+            
+            yPos += cellHeight;
+        });
+    }
+    
+    // Ajouter la carte Arduino
+    if (f.boards && f.boards.length > 0) {
+        f.boards.forEach(boardId => {
+            const board = arduinoBoards.find(b => b.id === boardId);
+            if (board) {
+                if (yPos > pageHeight - 30) {
+                    doc.addPage();
+                    addHeader();
+                    yPos = 35;
+                }
+                
+                const cellHeight = 25;
+                doc.rect(margin, yPos, pageWidth - 2 * margin, cellHeight);
+                for (let i = 1; i < colX.length; i++) {
+                    doc.line(colX[i], yPos, colX[i], yPos + cellHeight);
+                }
+                
+                doc.text("1", colX[0] + 8, yPos + 15);
+                doc.text("Arduino", colX[1] + 2, yPos + 10);
+                doc.text(board.id, colX[1] + 2, yPos + 15);
+                doc.text(`${board.name}`, colX[2] + 2, yPos + 15);
+                
+                // Afficher l'aperçu de la carte (comme symbole)
+                if (boardImages[board.id] && boardImages[board.id].apercu) {
+                    try {
+                        doc.addImage(boardImages[board.id].apercu, 'PNG', colX[3] + 2, yPos + 2, colWidths[3] - 4, cellHeight - 4);
+                    } catch (e) {
+                        console.error("Erreur chargement aperçu carte:", e);
+                    }
+                }
+                
+                // Afficher l'empreinte de la carte
+                if (boardImages[board.id] && boardImages[board.id].empreinte) {
+                    try {
+                        doc.addImage(boardImages[board.id].empreinte, 'PNG', colX[4] + 2, yPos + 2, colWidths[4] - 4, cellHeight - 4);
+                    } catch (e) {
+                        console.error("Erreur chargement empreinte carte:", e);
+                    }
+                }
+                
+                yPos += cellHeight;
+            }
+        });
+    }
+    
+    // ========== PAGE 4 - SCHÉMA DE PRINCIPE ==========
+    pageNumbers.but.end = doc.internal.getNumberOfPages();
+    if (f.schemasPrincipe && f.schemasPrincipe.length > 0) {
+        doc.addPage();
+        pageNumbers.principe.start = doc.internal.getNumberOfPages();
+        addHeader();
+        yPos = 35;
+        
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Schéma de principe (avec tinkercad) :", margin, yPos);
+        yPos += 10;
+        
+        f.schemasPrincipe.forEach((img) => {
+            if (yPos > pageHeight - 120) {
+                doc.addPage();
+                addHeader();
+                yPos = 35;
+            }
+            try {
+                doc.addImage(img, 'JPEG', margin, yPos, maxWidth, 110);
+                yPos += 115;
+            } catch (e) {
+                console.log('Erreur image:', e);
+            }
+        });
+    }
+    
+    // ========== PAGE 5 - SCHÉMA PROTEUS ==========
+    if (f.schemasPrincipe && f.schemasPrincipe.length > 0) {
+        pageNumbers.principe.end = doc.internal.getNumberOfPages();
+    }
+    if (f.schemasProteus && f.schemasProteus.length > 0) {
+        doc.addPage();
+        pageNumbers.proteus.start = doc.internal.getNumberOfPages();
+        addHeader();
+        yPos = 35;
+        
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Schéma Proteus :", margin, yPos);
+        yPos += 10;
+        
+        f.schemasProteus.forEach((img) => {
+            if (yPos > pageHeight - 120) {
+                doc.addPage();
+                addHeader();
+                yPos = 35;
+            }
+            try {
+                doc.addImage(img, 'JPEG', margin, yPos, maxWidth, 110);
+                yPos += 115;
+            } catch (e) {
+                console.log('Erreur image:', e);
+            }
+        });
+    }
+    
+    // ========== PAGE 6 - LE CODE ==========
+    if (f.schemasProteus && f.schemasProteus.length > 0) {
+        pageNumbers.proteus.end = doc.internal.getNumberOfPages();
+    }
+    if (f.code) {
+        doc.addPage();
+        pageNumbers.code.start = doc.internal.getNumberOfPages();
+        addHeader();
+        yPos = 35;
+        
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Le code :", margin, yPos);
+        yPos += 10;
+        
+        doc.setFontSize(8);
+        doc.setFont("courier", "normal");
+        const codeLines = f.code.split('\n');
+        
+        codeLines.forEach((line, idx) => {
+            if (yPos > pageHeight - 25) {
+                doc.addPage();
+                addHeader();
+                yPos = 35;
+            }
+            
+            // Numéro de ligne
+            doc.setTextColor(100, 100, 100);
+            doc.text(String(idx + 1).padStart(3, ' '), margin, yPos);
+            
+            // Code
+            doc.setTextColor(0, 0, 0);
+            const truncatedLine = line.length > 85 ? line.substring(0, 82) + '...' : line;
+            doc.text(truncatedLine, margin + 10, yPos);
+            yPos += 4;
+        });
+    }
+    
+    // ========== PAGE 7 - CONCLUSION ==========
+    if (f.code) {
+        pageNumbers.code.end = doc.internal.getNumberOfPages();
+    }
+    doc.addPage();
+    pageNumbers.conclusion.start = doc.internal.getNumberOfPages();
+    addHeader();
+    yPos = 35;
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Conclusion personnelle :", margin, yPos);
+    yPos += 10;
+    
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    const conclusionText = f.conclusion || "Non renseigné";
+    const conclusionLines = doc.splitTextToSize(conclusionText, maxWidth);
+    doc.text(conclusionLines, margin, yPos);
+    
+    pageNumbers.conclusion.end = doc.internal.getNumberOfPages();
+    
+    // Fonction pour formater les numéros de page
+    function formatPageNumber(section) {
+        if (section.start === 0) return null;
+        if (section.start === section.end) return `P${section.start}`;
+        return `P${section.start}-${section.end}`;
+    }
+    
+    // ========== REMPLIR LA TABLE DES MATIÈRES AVEC LES VRAIS NUMÉROS ==========
+    doc.setPage(2); // Revenir à la page 2 (table des matières)
+    yPos = 40;
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(`• ${formatPageNumber(pageNumbers.garde)} : page de garde`, margin + 5, yPos);
+    yPos += 15;
+    doc.text(`• ${formatPageNumber(pageNumbers.sommaire)} : table des matières`, margin + 5, yPos);
+    yPos += 15;
+    doc.text(`• ${formatPageNumber(pageNumbers.but)} : but du projet + prérequis`, margin + 5, yPos);
+    yPos += 15;
+    
+    const principePages = formatPageNumber(pageNumbers.principe);
+    if (principePages) {
+        doc.text(`• ${principePages} : schéma de principe`, margin + 5, yPos);
+        yPos += 15;
+    }
+    
+    const proteusPages = formatPageNumber(pageNumbers.proteus);
+    if (proteusPages) {
+        doc.text(`• ${proteusPages} : schéma Proteus`, margin + 5, yPos);
+        yPos += 15;
+    }
+    
+    const codePages = formatPageNumber(pageNumbers.code);
+    if (codePages) {
+        doc.text(`• ${codePages} : le code`, margin + 5, yPos);
+        yPos += 15;
+    }
+    
+    const conclusionPages = formatPageNumber(pageNumbers.conclusion);
+    if (conclusionPages) {
+        doc.text(`• ${conclusionPages} : conclusion personnelle`, margin + 5, yPos);
+    }
+    
+    // Télécharger le PDF
+    const fileName = `Rapport_${f.name.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+    doc.save(fileName);
+    
+    customAlert(`✅ Rapport PDF généré !\n\nFichier: ${fileName}`, 'Succès');
 }
 
 // --- WIFI & ESP32 ---
@@ -5877,6 +6443,146 @@ function clearCalculationHistory() {
     calculationHistory = [];
     localStorage.removeItem('lab_calc_history');
     customAlert('Historique effacé.', 'Succès');
+}
+
+// ========================================
+// TABLEAU DES PRÉREQUIS POUR RAPPORT
+// ========================================
+
+function showPrerequisTable() {
+    const f = db[currentIdx];
+    if (!f) return;
+    
+    const content = document.getElementById('prerequis-content');
+    let html = '<div style="background:var(--card); border-radius:15px; padding:20px;">';
+    
+    // Titre
+    html += `<h2 style="text-align:center; color:var(--primary); margin-bottom:20px;">Tableau des Prérequis</h2>`;
+    html += `<p style="text-align:center; color:#94a3b8; margin-bottom:30px;">Projet: <b>${f.name}</b></p>`;
+    
+    // Tableau HTML
+    html += `<div style="overflow-x:auto;">`;
+    html += `<table id="table-prerequis" style="width:100%; border-collapse:collapse; background:var(--bg); border-radius:10px; overflow:hidden;">`;
+    
+    // En-têtes
+    html += `<thead>`;
+    html += `<tr style="background:#8b5cf6; color:white;">`;
+    html += `<th style="padding:12px; text-align:center; border:1px solid #6d28d9;">Quantité</th>`;
+    html += `<th style="padding:12px; text-align:left; border:1px solid #6d28d9;">Composant et Référence</th>`;
+    html += `<th style="padding:12px; text-align:center; border:1px solid #6d28d9;">Symbole</th>`;
+    html += `<th style="padding:12px; text-align:center; border:1px solid #6d28d9;">Donnée</th>`;
+    html += `<th style="padding:12px; text-align:center; border:1px solid #6d28d9;">Brochage</th>`;
+    html += `<th style="padding:12px; text-align:center; border:1px solid #6d28d9;">Empattement / Encombrement</th>`;
+    html += `<th style="padding:12px; text-align:center; border:1px solid #6d28d9;">Datasheet</th>`;
+    html += `</tr>`;
+    html += `</thead>`;
+    html += `<tbody>`;
+    
+    // Ligne pour chaque composant
+    f.components.forEach((comp, idx) => {
+        const category = componentCategories.find(c => c.id === comp.categoryId);
+        const compId = comp.componentId || comp.id;
+        const fullComponent = category?.components.find(c => c.id === compId);
+        
+        if (fullComponent) {
+            const quantity = comp.quantity || 1;
+            const bgColor = idx % 2 === 0 ? 'var(--card)' : 'var(--bg)';
+            
+            html += `<tr style="background:${bgColor};">`;
+            
+            // Quantité
+            html += `<td style="padding:12px; text-align:center; border:1px solid #334155; font-weight:bold;">${quantity}</td>`;
+            
+            // Composant et Référence
+            html += `<td style="padding:12px; border:1px solid #334155;">`;
+            html += `<b>${fullComponent.name}</b><br>`;
+            html += `<small style="color:#94a3b8;">Réf: ${fullComponent.id}</small>`;
+            html += `</td>`;
+            
+            // Symbole
+            html += `<td style="padding:12px; text-align:center; border:1px solid #334155;">`;
+            if (fullComponent.symbole) {
+                html += `<img src="${fullComponent.symbole}" style="max-width:80px; max-height:60px;" onerror="this.style.display='none'; this.parentElement.innerHTML='N/A';">`;
+            } else {
+                html += `<span style="color:#94a3b8;">N/A</span>`;
+            }
+            html += `</td>`;
+            
+            // Donnée (tension, courant, etc.)
+            html += `<td style="padding:12px; text-align:center; border:1px solid #334155;">`;
+            let data = [];
+            if (fullComponent.voltage) data.push(fullComponent.voltage);
+            if (fullComponent.current) data.push(fullComponent.current);
+            if (fullComponent.wavelength) data.push(fullComponent.wavelength);
+            if (fullComponent.range) data.push(fullComponent.range);
+            html += data.length > 0 ? data.join('<br>') : '<span style="color:#94a3b8;">-</span>';
+            html += `</td>`;
+            
+            // Brochage
+            html += `<td style="padding:12px; text-align:center; border:1px solid #334155;">`;
+            if (fullComponent.pinoutFolder) {
+                html += `<img src="${fullComponent.pinoutFolder}/brochage.png" style="max-width:100px; max-height:80px;" onerror="this.style.display='none'; this.parentElement.innerHTML='<small style=color:#94a3b8>Voir fiche</small>';">`;
+            } else {
+                html += `<small style="color:#94a3b8;">Voir fiche</small>`;
+            }
+            html += `</td>`;
+            
+            // Empattement
+            html += `<td style="padding:12px; text-align:center; border:1px solid #334155;">`;
+            if (fullComponent.footprintFolder) {
+                html += `<img src="${fullComponent.footprintFolder}/empreinte.png" style="max-width:100px; max-height:80px;" onerror="this.style.display='none'; this.parentElement.innerHTML='<small style=color:#94a3b8>Voir fiche</small>';">`;
+            } else if (fullComponent.footprint) {
+                html += `<small>${fullComponent.footprint}</small>`;
+            } else {
+                html += `<small style="color:#94a3b8;">Voir fiche</small>`;
+            }
+            html += `</td>`;
+            
+            // Datasheet
+            html += `<td style="padding:12px; text-align:center; border:1px solid #334155;">`;
+            if (fullComponent.buyLink) {
+                html += `<a href="${fullComponent.buyLink}" target="_blank" style="color:#3b82f6; text-decoration:none; font-size:12px;">🔗 Lien</a>`;
+            } else {
+                html += `<span style="color:#94a3b8;">-</span>`;
+            }
+            html += `</td>`;
+            
+            html += `</tr>`;
+        }
+    });
+    
+    html += `</tbody>`;
+    html += `</table>`;
+    html += `</div>`;
+    
+    html += `<div style="margin-top:20px; padding:15px; background:#0f172a; border-radius:10px; border-left:4px solid var(--accent);">`;
+    html += `<p style="margin:0; color:#94a3b8; font-size:13px;">💡 <b>Astuce :</b> Utilisez le bouton "COPIER" pour copier ce tableau et le coller dans votre document Word/PDF.</p>`;
+    html += `</div>`;
+    
+    html += `</div>`;
+    
+    content.innerHTML = html;
+    openModal('modal-prerequis');
+}
+
+function copyPrerequisTable() {
+    const table = document.getElementById('table-prerequis');
+    if (!table) return;
+    
+    // Créer une plage de sélection
+    const range = document.createRange();
+    range.selectNode(table);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    
+    try {
+        document.execCommand('copy');
+        customAlert('✅ Tableau copié !\n\nVous pouvez maintenant le coller dans Word/LibreOffice.', 'Succès');
+    } catch (err) {
+        customAlert('❌ Erreur lors de la copie.\n\nVeuillez sélectionner manuellement le tableau et copier avec Ctrl+C.', 'Erreur');
+    }
+    
+    window.getSelection().removeAllRanges();
 }
 
 // ========================================
