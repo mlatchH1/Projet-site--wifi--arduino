@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test</title>
+</head>
+<body>
+    <h1>Test de chargement</h1>
+    <button onclick="alert('Ça marche!')">Cliquer ici</button>
+    <div id="status">Chargement...</div>
+    
+    <script>
+        console.log('Script de test chargé');
+        document.getElementById('status').textContent = 'Script chargé avec succès!';
+        
+        // Tester le chargement du vrai script
+        const script = document.createElement('script');
+        script.src = 'script.js';
+        script.onload = () => {
+            console.log('✅ script.js chargé');
+            document.getElementById('status').textContent += '\n✅ script.js chargé';
+        };
+        script.onerror = (e) => {
+            console.error('❌ Erreur chargement script.js:', e);
+            document.getElementById('status').textContent += '\n❌ Erreur chargement script.js';
+        };
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

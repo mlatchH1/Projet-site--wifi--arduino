@@ -1,7 +1,16 @@
 ﻿let db = [];
 let currentIdx = null;
 let projectDirHandle = null; // Handle vers le dossier "projet" (obligatoire pour sauvegarder)
-let favoriteComponents = JSON.parse(localStorage.getItem('lab_favorite_components') || '[]');
+let favoriteComponents = [];
+let organisationSteps = [];
+
+// Charger les favoris de manière sécurisée
+try {
+    favoriteComponents = JSON.parse(localStorage.getItem('lab_favorite_components') || '[]');
+} catch (e) {
+    console.error('Erreur chargement favoris:', e);
+    favoriteComponents = [];
+}
 
 // --- FONCTIONS UTILITAIRES ---
 // Nettoie les noms de fichiers pour l'affichage (retire numéros et extension)
@@ -3118,7 +3127,6 @@ function filterComponentList(searchTerm) {
 }
 
 window.showComponentDetail = function(categoryId, componentId) {
-    console.log('showComponentDetail called:', categoryId, componentId);
     const category = componentCategories.find(c => c.id === categoryId);
     if (!category) {
         console.error('Category not found:', categoryId);
@@ -3130,7 +3138,6 @@ window.showComponentDetail = function(categoryId, componentId) {
         return;
     }
     
-    console.log('Opening component detail for:', component.name);
     closeModal('modal-component-list');
     
     const isFavorite = isComponentFavorite(categoryId, componentId);
@@ -3701,7 +3708,6 @@ async function exportExcelProfessional(f) {
         row++;
         
         // AFFICHER LES COMPOSANTS
-        console.log('DEBUG - f.boards:', f.boards);
         f.components.forEach((comp, idx) => {
             const category = componentCategories.find(c => c.id === comp.categoryId);
             const compId = comp.componentId || comp.id;
@@ -4500,6 +4506,12 @@ function openFolder(i) {
     document.getElementById('edit-notes').value = f.notes || "";
     document.getElementById('edit-code').value = f.code || "";
     document.getElementById('edit-goal').value = f.goal || "";
+    organisationSteps = (f.organisation || '')
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+        .map(s => s.replace(/^[-•]\s*/, ''));
+    document.getElementById('edit-tests').value = f.tests || "";
     document.getElementById('edit-conclusion').value = f.conclusion || "";
     document.getElementById('edit-student-info').value = f.studentInfo || "";
     document.getElementById('edit-project-number').value = f.projectNumber || "";
@@ -4544,13 +4556,66 @@ function openFolder(i) {
     // Afficher les schémas Proteus
     renderSchemasProteus();
     
+    // Afficher les screenshots de code
+    displayCodeScreenshots(f.codeScreenshots || []);
+    
     // Afficher les composants du projet
     renderProjectComponents();
     
     // Mettre à jour les statistiques
     updateProjectStatistics();
+
+    renderOrganisationSteps();
     
     document.getElementById('modal-project').style.display = 'flex';
+}
+
+// ========================================
+// ORGANIGRAMME - EDITEUR D'ETAPES
+// ========================================
+function renderOrganisationSteps() {
+    const container = document.getElementById('organisation-steps');
+    if (!container) return;
+    if (!organisationSteps || organisationSteps.length === 0) {
+        container.innerHTML = '<p style="color:#94a3b8; font-size:12px;">Aucune étape</p>';
+        return;
+    }
+    container.innerHTML = organisationSteps.map((step, idx) => `
+        <div style="display:flex; align-items:center; gap:8px; background:#1e293b; border-radius:8px; padding:8px 10px; margin-bottom:6px;">
+            <span style="font-size:12px; color:#94a3b8; width:22px; text-align:right;">${idx + 1}.</span>
+            <span style="flex:1; font-size:13px;">${step}</span>
+            <button onclick="moveOrganisationStep(${idx}, -1)" style="background:#334155; color:white; border:none; padding:4px 6px; border-radius:6px;">↑</button>
+            <button onclick="moveOrganisationStep(${idx}, 1)" style="background:#334155; color:white; border:none; padding:4px 6px; border-radius:6px;">↓</button>
+            <button onclick="removeOrganisationStep(${idx})" style="background:#ef4444; color:white; border:none; padding:4px 6px; border-radius:6px;">✕</button>
+        </div>
+    `).join('');
+}
+
+function addOrganisationStep() {
+    const input = document.getElementById('organisation-step-input');
+    if (!input) return;
+    const value = (input.value || '').trim();
+    if (!value) {
+        customAlert('Entrez une étape.', 'Organisation');
+        return;
+    }
+    organisationSteps.push(value);
+    input.value = '';
+    renderOrganisationSteps();
+}
+
+function moveOrganisationStep(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= organisationSteps.length) return;
+    const temp = organisationSteps[index];
+    organisationSteps[index] = organisationSteps[newIndex];
+    organisationSteps[newIndex] = temp;
+    renderOrganisationSteps();
+}
+
+function removeOrganisationStep(index) {
+    organisationSteps.splice(index, 1);
+    renderOrganisationSteps();
 }
 
 // Calculer le coût total du projet
@@ -5008,6 +5073,8 @@ async function createEmptyProject() {
             favorite: false,
             notes: '', 
             code: '', 
+            organisation: '',
+            tests: '',
             img: '', 
             schemaPrincipe: '', 
             schemaProteus: '', 
@@ -5090,6 +5157,8 @@ async function createFromTemplate(templateId) {
             favorite: false,
             notes: template.notes || '',
             code: template.code,
+            organisation: '',
+            tests: '',
             img: '',
             schemaPrincipe: '',
             schemaProteus: '',
@@ -5110,6 +5179,8 @@ async function saveProject() {
     db[currentIdx].notes = document.getElementById('edit-notes').value;
     db[currentIdx].code = document.getElementById('edit-code').value;
     db[currentIdx].goal = document.getElementById('edit-goal').value;
+    db[currentIdx].organisation = (organisationSteps || []).join('\n');
+    db[currentIdx].tests = document.getElementById('edit-tests').value;
     db[currentIdx].conclusion = document.getElementById('edit-conclusion').value;
     db[currentIdx].studentInfo = document.getElementById('edit-student-info').value;
     db[currentIdx].projectNumber = document.getElementById('edit-project-number').value;
@@ -5148,6 +5219,8 @@ async function duplicateProject() {
         favorite: false,
         notes: original.notes,
         code: original.code,
+        organisation: original.organisation || '',
+        tests: original.tests || '',
         img: original.img,
         schemaPrincipe: original.schemaPrincipe || '',
         schemaProteus: original.schemaProteus || '',
@@ -5565,8 +5638,8 @@ async function exportProjectPDF() {
             }
             
             // Symbole
-            const compKey = `${category.id}_${fullComponent.id}`;
-            if (componentImages[compKey] && componentImages[compKey].symbole) {
+            const compKey = `${category?.id}_${fullComponent?.id}`;
+            if (fullComponent && category && componentImages[compKey] && componentImages[compKey].symbole) {
                 try {
                     doc.addImage(componentImages[compKey].symbole, 'PNG', colX[3] + 2, yPos + 2, colWidths[3] - 4, cellHeight - 4);
                 } catch (e) {
@@ -5575,7 +5648,7 @@ async function exportProjectPDF() {
             }
             
             // Empattement/empreinte
-            if (componentImages[compKey] && componentImages[compKey].empreinte) {
+            if (fullComponent && category && componentImages[compKey] && componentImages[compKey].empreinte) {
                 try {
                     doc.addImage(componentImages[compKey].empreinte, 'PNG', colX[4] + 2, yPos + 2, colWidths[4] - 4, cellHeight - 4);
                 } catch (e) {
@@ -5732,8 +5805,71 @@ async function exportProjectPDF() {
         });
     }
     
+    // ========== SCREENSHOTS DE CODE ==========
+    if (f.codeScreenshots && f.codeScreenshots.length > 0) {
+        if (!f.code) {
+            // Si pas de code texte, commencer la numérotation ici
+            pageNumbers.code.start = doc.internal.getNumberOfPages() + 1;
+        }
+        
+        for (let index = 0; index < f.codeScreenshots.length; index++) {
+            const screenshot = f.codeScreenshots[index];
+            doc.addPage();
+            addHeader();
+            yPos = 35;
+            
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text(`Code - Partie ${index + 1}/${f.codeScreenshots.length}`, margin, yPos);
+            yPos += 10;
+            
+            try {
+                // Créer une image temporaire pour obtenir les dimensions réelles
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = screenshot;
+                });
+                
+                // Calculer le ratio d'aspect
+                const imgWidth = img.width;
+                const imgHeight = img.height;
+                const aspectRatio = imgWidth / imgHeight;
+                
+                // Espace disponible
+                const maxImageHeight = pageHeight - yPos - 20;
+                const maxImageWidth = maxWidth;
+                
+                // Calculer les dimensions finales en respectant le ratio
+                let finalWidth, finalHeight;
+                
+                if (aspectRatio > (maxImageWidth / maxImageHeight)) {
+                    // Image plus large que haute - limiter par la largeur
+                    finalWidth = maxImageWidth;
+                    finalHeight = maxImageWidth / aspectRatio;
+                } else {
+                    // Image plus haute que large - limiter par la hauteur
+                    finalHeight = maxImageHeight;
+                    finalWidth = maxImageHeight * aspectRatio;
+                }
+                
+                // Centrer horizontalement si l'image est plus petite que la largeur max
+                const xOffset = margin + (maxImageWidth - finalWidth) / 2;
+                
+                // Ajouter l'image avec les bonnes proportions
+                doc.addImage(screenshot, 'PNG', xOffset, yPos, finalWidth, finalHeight);
+            } catch (e) {
+                console.error('Erreur ajout screenshot:', e);
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "italic");
+                doc.text("Erreur lors du chargement de cette capture d'écran", margin, yPos);
+            }
+        }
+    }
+    
     // ========== PAGE 7 - CONCLUSION ==========
-    if (f.code) {
+    if (f.code || (f.codeScreenshots && f.codeScreenshots.length > 0)) {
         pageNumbers.code.end = doc.internal.getNumberOfPages();
     }
     doc.addPage();
@@ -5804,10 +5940,566 @@ async function exportProjectPDF() {
     customAlert(`✅ Rapport PDF généré !\n\nFichier: ${fileName}`, 'Succès');
 }
 
+// --- EXPORT WORD (RTF) ---
+function exportProjectRTF() {
+    const f = db[currentIdx];
+    if (!f) return;
+
+    function rtfEscape(text) {
+        if (text === null || text === undefined) return '';
+        const str = String(text);
+        let out = '';
+        for (let i = 0; i < str.length; i++) {
+            const ch = str[i];
+            const code = str.charCodeAt(i);
+            if (ch === '\\' || ch === '{' || ch === '}') {
+                out += '\\' + ch;
+            } else if (ch === '\n') {
+                out += '\\par\n';
+            } else if (ch === '\r') {
+                continue;
+            } else if (code > 127) {
+                const signed = code > 32767 ? code - 65536 : code;
+                out += `\\u${signed}?`;
+            } else {
+                out += ch;
+            }
+        }
+        return out;
+    }
+
+    function addHeading(lines, title) {
+        lines.push(`\\b\\fs28 ${rtfEscape(title)} \\b0\\fs24\\par`);
+    }
+
+    const lines = [];
+    lines.push('{\\rtf1\\ansi\\deff0');
+    lines.push('{\\fonttbl{\\f0 Segoe UI;}{\\f1 Courier New;}}');
+    lines.push('\\fs24');
+
+    // Titre
+    lines.push(`\\b ${rtfEscape(f.name || 'Projet Arduino')} \\b0\\par`);
+    lines.push(`\\i ${rtfEscape(new Date().toLocaleDateString('fr-FR'))} \\i0\\par`);
+    lines.push('\\par');
+
+    // Infos projet
+    addHeading(lines, 'Informations');
+    if (f.studentInfo) lines.push(`Élève : ${rtfEscape(f.studentInfo)}\\par`);
+    if (f.projectNumber) lines.push(`Projet n° : ${rtfEscape(f.projectNumber)}\\par`);
+    if (f.category) lines.push(`Catégorie : ${rtfEscape(f.category)}\\par`);
+    if (f.difficulty) lines.push(`Niveau : ${rtfEscape(f.difficulty)}\\par`);
+    if (f.tags && f.tags.length) lines.push(`Tags : ${rtfEscape(f.tags.join(', '))}\\par`);
+    lines.push('\\par');
+
+    // But
+    addHeading(lines, 'But du projet');
+    lines.push(`${rtfEscape(f.goal || 'Non renseigné')}\\par`);
+    lines.push('\\par');
+
+    // Composants
+    addHeading(lines, 'Prérequis - composants');
+    if (f.components && f.components.length > 0) {
+        f.components.forEach((comp) => {
+            const qty = comp.quantity || 1;
+            const name = comp.name || 'Composant';
+            lines.push(`- ${rtfEscape(qty)} x ${rtfEscape(name)}\\par`);
+        });
+    } else {
+        lines.push('Aucun composant renseigné.\\par');
+    }
+    lines.push('\\par');
+
+    // Cartes Arduino
+    addHeading(lines, 'Carte Arduino');
+    const boardIds = Array.isArray(f.boards) && f.boards.length ? f.boards : (f.arduinoBoard ? [f.arduinoBoard] : []);
+    if (boardIds.length) {
+        boardIds.forEach((id) => {
+            const board = arduinoBoards.find(b => b.id === id);
+            lines.push(`- ${rtfEscape(board ? board.name : id)}\\par`);
+        });
+    } else {
+        lines.push('Aucune carte sélectionnée.\\par');
+    }
+    lines.push('\\par');
+
+    // Schémas
+    addHeading(lines, 'Schémas');
+    const principeCount = (f.schemasPrincipe || []).length;
+    const proteusCount = (f.schemasProteus || []).length;
+    lines.push(`Schéma de principe : ${rtfEscape(principeCount)} image(s).\\par`);
+    lines.push(`Schéma Proteus : ${rtfEscape(proteusCount)} image(s).\\par`);
+    lines.push('\\par');
+
+    // Code
+    addHeading(lines, 'Code');
+    if (f.code) {
+        lines.push('\\f1\\fs20');
+        lines.push(rtfEscape(f.code));
+        lines.push('\\f0\\fs24\\par');
+    } else {
+        lines.push('Code non renseigné.\\par');
+    }
+    lines.push('\\par');
+
+    // Conclusion
+    addHeading(lines, 'Conclusion');
+    lines.push(`${rtfEscape(f.conclusion || 'Non renseigné')}\\par`);
+
+    lines.push('}');
+
+    const rtfContent = lines.join('\n');
+    const fileName = `Rapport_${(f.name || 'Projet').replace(/[^a-z0-9]/gi, '_')}.rtf`;
+    const blob = new Blob([rtfContent], { type: 'application/rtf' });
+    saveAs(blob, fileName);
+    customAlert(`✅ Document Word (RTF) généré !\n\nFichier: ${fileName}`, 'Succès');
+}
+
+// --- EXPORT WORD (DOCX) ---
+async function exportProjectDOCX() {
+    const f = db[currentIdx];
+    if (!f) return;
+
+    if (!window.docx) {
+        customAlert("La librairie DOCX locale n'est pas chargée.", 'Erreur');
+        return;
+    }
+
+    const {
+        Document,
+        Packer,
+        Paragraph,
+        TextRun,
+        HeadingLevel,
+        AlignmentType,
+        Table,
+        TableRow,
+        TableCell,
+        WidthType,
+        BorderStyle,
+        ImageRun,
+        PageBreak,
+        TableOfContents,
+        Header,
+        TabStopType,
+        TabStopPosition,
+        ExternalHyperlink,
+        VerticalAlign
+    } = window.docx;
+
+    const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+    const header = new Header({
+        children: [
+            new Paragraph({
+                children: [
+                    new TextRun(f.studentInfo || ''),
+                    new TextRun({ text: `\t${dateStr}` })
+                ],
+                tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX || 9023 }]
+            })
+        ]
+    });
+
+    async function imageRunFromSrc(src, maxWidth, maxHeight) {
+        if (!src) return null;
+        try {
+            const response = await fetch(src);
+            if (!response.ok) return null;
+            const blob = await response.blob();
+            if (!blob.type || !blob.type.startsWith('image/')) return null;
+            const arrayBuffer = await blob.arrayBuffer();
+
+            const size = await new Promise((resolve) => {
+                const img = new Image();
+                const url = URL.createObjectURL(blob);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    resolve({ width: img.width, height: img.height });
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    resolve({ width: maxWidth, height: maxHeight });
+                };
+                img.src = url;
+            });
+
+            const widthRatio = maxWidth / size.width;
+            const heightRatio = maxHeight / size.height;
+            const ratio = Math.min(1, widthRatio, heightRatio);
+
+            const finalWidth = Math.round(size.width * ratio);
+            const finalHeight = Math.round(size.height * ratio);
+
+            return new ImageRun({
+                data: new Uint8Array(arrayBuffer),
+                transformation: { width: finalWidth, height: finalHeight }
+            });
+        } catch (e) {
+            return null;
+        }
+    }
+
+    async function imageRunFromCandidates(candidates, maxWidth, maxHeight) {
+        for (const src of candidates) {
+            const run = await imageRunFromSrc(src, maxWidth, maxHeight);
+            if (run) return run;
+        }
+        return null;
+    }
+
+    async function imageRunsFromCandidates(candidates, maxWidth, maxHeight, maxCount = 4) {
+        const runs = [];
+        for (const src of candidates) {
+            if (runs.length >= maxCount) break;
+            const run = await imageRunFromSrc(src, maxWidth, maxHeight);
+            if (run) runs.push(run);
+        }
+        return runs;
+    }
+
+    function textCell(text, widthPercent, opts = {}) {
+        return new TableCell({
+            children: [new Paragraph({ text: text || '-', alignment: AlignmentType.CENTER, ...opts })],
+            width: { size: widthPercent, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            margins: { top: 240, bottom: 240, left: 60, right: 60 }
+        });
+    }
+
+    function headerCell(text, widthPercent, size = 20) {
+        return new TableCell({
+            children: [
+                new Paragraph({
+                    children: [new TextRun({ text, bold: true, size })],
+                    alignment: AlignmentType.CENTER
+                })
+            ],
+            width: { size: widthPercent, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER
+        });
+    }
+
+    function imageCell(run, widthPercent) {
+        return new TableCell({
+            children: [new Paragraph({ children: run ? [run] : [new TextRun('-')], alignment: AlignmentType.CENTER })],
+            width: { size: widthPercent, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            margins: { top: 240, bottom: 240, left: 60, right: 60 }
+        });
+    }
+
+    function imageCellMultiple(runs, widthPercent) {
+        if (!runs || runs.length === 0) {
+            return new TableCell({
+                children: [new Paragraph({ children: [new TextRun('-')] })],
+                width: { size: widthPercent, type: WidthType.PERCENTAGE }
+            });
+        }
+        const paragraphs = runs.map(run => new Paragraph({ children: [run], alignment: AlignmentType.CENTER }));
+        return new TableCell({
+            children: paragraphs,
+            width: { size: widthPercent, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            margins: { top: 240, bottom: 240, left: 60, right: 60 }
+        });
+    }
+
+    function addBulletSection(title, textValue, defaultItems) {
+        children.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+        const lines = (textValue || '')
+            .split('\n')
+            .map(l => l.trim())
+            .filter(l => l.length > 0)
+            .map(l => l.replace(/^[-•]\s*/, ''));
+        const items = lines.length > 0 ? lines : defaultItems;
+        items.forEach(item => {
+            children.push(new Paragraph({
+                text: item,
+                bullet: { level: 0 },
+                alignment: AlignmentType.LEFT
+            }));
+        });
+    }
+
+    function addFlowSection(title, textValue, defaultItems) {
+        children.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+        const lines = (textValue || '')
+            .split('\n')
+            .map(l => l.trim())
+            .filter(l => l.length > 0)
+            .map(l => l.replace(/^[-•]\s*/, ''));
+        const items = lines.length > 0 ? lines : defaultItems;
+        items.forEach((item, idx) => {
+            children.push(new Paragraph({
+                children: [new TextRun({ text: item, bold: true, size: 44 })],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 200, after: 200 }
+            }));
+            if (idx < items.length - 1) {
+                children.push(new Paragraph({
+                    children: [new TextRun({ text: '↓', size: 40 })],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 120, after: 120 }
+                }));
+            }
+        });
+    }
+
+    const children = [];
+
+    // PAGE DE GARDE
+    children.push(new Paragraph({
+        text: f.name || 'Projet Arduino',
+        heading: HeadingLevel.TITLE,
+        alignment: AlignmentType.CENTER
+    }));
+
+    children.push(new Paragraph({
+        text: '',
+        spacing: { before: 240, after: 240 }
+    }));
+
+    if (f.img) {
+        const coverImage = await imageRunFromSrc(f.img, 520, 560);
+        if (coverImage) {
+            children.push(new Paragraph({
+                children: [coverImage],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 120, after: 120 }
+            }));
+        }
+    }
+
+    if (f.projectNumber) {
+        children.push(new Paragraph({ text: '', spacing: { before: 120, after: 0 } }));
+        children.push(new Paragraph({
+            children: [new TextRun({ text: `Projet n°${f.projectNumber}`, size: 36 })],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 120, after: 0 }
+        }));
+    }
+
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+
+    // PAGE TABLE DES MATIÈRES (manuelle)
+    children.push(new Paragraph({ text: 'Table des matières', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+    children.push(new Paragraph({ text: '', spacing: { before: 240, after: 240 } }));
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+
+    // BUT + PRÉREQUIS
+    children.push(new Paragraph({
+        text: `But du projet n°${f.projectNumber || ''}`,
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.LEFT
+    }));
+    children.push(new Paragraph({ text: f.goal || 'Non renseigné', alignment: AlignmentType.LEFT }));
+
+    children.push(new Paragraph({ text: 'Prérequis', heading: HeadingLevel.HEADING_2, alignment: AlignmentType.LEFT }));
+
+    const tableRows = [];
+    tableRows.push(new TableRow({
+        children: [
+            headerCell('Quantité', 12),
+            headerCell('Composant', 24),
+            headerCell('Donnée', 10),
+            headerCell('Symbole', 12),
+            headerCell('Empattement', 30),
+            headerCell('Datasheet', 14, 16)
+        ]
+    }));
+
+    if (f.components && f.components.length > 0) {
+        for (const comp of f.components) {
+            const category = componentCategories.find(c => c.id === comp.categoryId);
+            const compId = comp.componentId || comp.id;
+            const fullComponent = category?.components.find(c => c.id === compId);
+
+            const quantity = String(comp.quantity || 1);
+            let compName = fullComponent?.name || comp.name || 'Composant';
+            const dataParts = [];
+            if (fullComponent?.voltage) dataParts.push(fullComponent.voltage);
+            if (fullComponent?.current) dataParts.push(fullComponent.current);
+            if (fullComponent?.wavelength) dataParts.push(fullComponent.wavelength);
+            if (fullComponent?.range) dataParts.push(fullComponent.range);
+            let dataText = dataParts.join(' / ') || '-';
+
+            const isResistance = category?.id === 'resistances' || /Résistance/i.test(compName);
+            if (isResistance) {
+                const match = compName.match(/(\d+[.,]?\d*)\s*(k|M)?\s*Ω/i);
+                compName = 'Résistance';
+                if (fullComponent?.displayValue) {
+                    dataText = fullComponent.displayValue;
+                } else if (fullComponent?.value) {
+                    dataText = `${fullComponent.value}Ω`;
+                } else if (match) {
+                    const unit = match[2] ? match[2].toUpperCase() : '';
+                    dataText = `${match[1]}${unit}Ω`;
+                }
+            }
+
+            const categoryFolder = category?.folderName || category?.id;
+            const symboleCandidates = [
+                fullComponent?.symbole,
+                categoryFolder ? `images/composants/${categoryFolder}/_shared/symbole/symbole.png` : null
+            ].filter(Boolean);
+
+            const footprintFolder = fullComponent?.footprintFolder || (categoryFolder ? `images/composants/${categoryFolder}/_shared/empreinte` : null);
+            const footprintCandidates = [
+                footprintFolder ? `${footprintFolder}/empreinte.png` : null,
+                footprintFolder ? `${footprintFolder}/footprint.png` : null,
+                footprintFolder ? `${footprintFolder}/01-vue-dessus.png` : null,
+                footprintFolder ? `${footprintFolder}/03-vue-face.png` : null
+            ].filter(Boolean);
+
+            const symboleRun = await imageRunFromCandidates(symboleCandidates, 120, 80);
+            const footprintRuns = await imageRunsFromCandidates(footprintCandidates, 150, 100, 4);
+
+            const datasheetCell = fullComponent?.buyLink
+                ? new TableCell({
+                    children: [
+                        new Paragraph({
+                            children: [
+                                new ExternalHyperlink({
+                                    link: fullComponent.buyLink,
+                                    children: [new TextRun({ text: 'Lien', style: 'Hyperlink' })]
+                                })
+                            ],
+                            alignment: AlignmentType.CENTER
+                        })
+                    ],
+                    verticalAlign: VerticalAlign.CENTER
+                })
+                : new TableCell({
+                    children: [new Paragraph({ text: '-', alignment: AlignmentType.CENTER })],
+                    verticalAlign: VerticalAlign.CENTER
+                });
+
+            tableRows.push(new TableRow({
+                children: [
+                    textCell(quantity, 12),
+                    textCell(compName, 24),
+                    textCell(dataText, 10),
+                    imageCell(symboleRun, 12),
+                    imageCellMultiple(footprintRuns, 30),
+                    datasheetCell
+                ]
+            }));
+        }
+    }
+
+    const prerequisTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: tableRows,
+        borders: {
+            top: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            bottom: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            left: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            right: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: '000000' },
+            insideVertical: { style: BorderStyle.SINGLE, size: 1, color: '000000' }
+        }
+    });
+
+    children.push(prerequisTable);
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+
+    // ORGANISATION / TESTS
+    addFlowSection('Organisation', f.organisation, [
+        'Réalisation du code',
+        'Test sur tinkercad',
+        'Test sur proteus',
+        'Test réel'
+    ]);
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+
+    children.push(new Paragraph({ text: 'Tests / Validation', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+    children.push(new Paragraph({ text: f.tests || 'Non renseigné', alignment: AlignmentType.LEFT }));
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+
+    // SCHÉMAS
+    if (f.schemasPrincipe && f.schemasPrincipe.length > 0) {
+        children.push(new Paragraph({ text: 'Schéma de principe (avec tinkercad)', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+        for (const img of f.schemasPrincipe) {
+            const run = await imageRunFromSrc(img, 520, 320);
+            if (run) {
+                children.push(new Paragraph({
+                    children: [run],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 120, after: 120 }
+                }));
+            }
+        }
+        children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+
+    if (f.schemasProteus && f.schemasProteus.length > 0) {
+        children.push(new Paragraph({ text: 'Schéma Proteus', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+        for (const img of f.schemasProteus) {
+            const run = await imageRunFromSrc(img, 520, 320);
+            if (run) {
+                children.push(new Paragraph({
+                    children: [run],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 120, after: 120 }
+                }));
+            }
+        }
+        children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+
+    // CODE
+    children.push(new Paragraph({ text: 'Le code', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+    if (f.code) {
+        const codeLines = f.code.split('\n');
+        for (const line of codeLines) {
+            children.push(new Paragraph({
+                children: [new TextRun({ text: line })],
+                alignment: AlignmentType.LEFT
+            }));
+        }
+    } else {
+        children.push(new Paragraph({ text: 'Code non renseigné.', alignment: AlignmentType.LEFT }));
+    }
+
+    if (f.codeScreenshots && f.codeScreenshots.length > 0) {
+        for (let i = 0; i < f.codeScreenshots.length; i++) {
+            children.push(new Paragraph({ text: `Code - Partie ${i + 1}`, heading: HeadingLevel.HEADING_2, alignment: AlignmentType.LEFT }));
+            const run = await imageRunFromSrc(f.codeScreenshots[i], 520, 320);
+            if (run) {
+                children.push(new Paragraph({
+                    children: [run],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 120, after: 120 }
+                }));
+            }
+        }
+    }
+
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+
+    // CONCLUSION
+    children.push(new Paragraph({ text: 'Conclusion personnelle', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.LEFT }));
+    children.push(new Paragraph({ text: f.conclusion || 'Non renseigné', alignment: AlignmentType.LEFT }));
+
+    const doc = new Document({
+        updateFields: true,
+        sections: [
+            {
+                headers: { default: header },
+                children
+            }
+        ]
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const fileName = `Rapport_${(f.name || 'Projet').replace(/[^a-z0-9]/gi, '_')}.docx`;
+    saveAs(blob, fileName);
+    customAlert(`✅ Document Word généré !\n\nFichier: ${fileName}`, 'Succès');
+}
+
 // --- WIFI & ESP32 ---
 function saveWifi() {
     localStorage.setItem('lab_ip', document.getElementById('ip-input').value);
-    document.getElementById('home-status').innerText = "IP: " + document.getElementById('ip-input').value;
     closeModal('modal-wifi');
 }
 
@@ -5851,7 +6543,6 @@ async function saveFolderHandle(handle) {
         const tx = db.transaction('handles', 'readwrite');
         await tx.objectStore('handles').put(handle, 'projectDir');
         await tx.done;
-        console.log('✅ Dossier sauvegardé pour la prochaine session');
     } catch (error) {
         console.error('Erreur sauvegarde handle:', error);
     }
@@ -5861,18 +6552,12 @@ async function saveFolderHandle(handle) {
 async function loadFolderHandle() {
     return new Promise(async (resolve, reject) => {
         try {
-            console.log('🔍 Tentative de chargement du handle depuis IndexedDB...');
             const db = await openDB();
             const tx = db.transaction('handles', 'readonly');
             const request = tx.objectStore('handles').get('projectDir');
             
             request.onsuccess = () => {
-                const handle = request.result;
-                console.log('📦 Handle récupéré:', handle ? 'OUI' : 'NON');
-                if (handle) {
-                    console.log('📦 Handle type:', typeof handle, 'kind:', handle.kind);
-                }
-                resolve(handle);
+                resolve(request.result);
             };
             
             request.onerror = () => {
@@ -5905,50 +6590,34 @@ function openDB() {
 
 // Charger automatiquement les projets depuis le dossier
 async function loadProjectsFromFolder() {
-    console.log('🚀 Démarrage loadProjectsFromFolder...');
-    
     // Vérifier si File System Access API est disponible
     if (!('showDirectoryPicker' in window)) {
-        console.log('❌ File System Access API non disponible - utilisez Chrome ou Edge');
         return;
     }
-    
-    console.log('✅ File System Access API disponible');
     
     // Essayer de récupérer le dossier sauvegardé
     try {
         const savedHandle = await loadFolderHandle();
-        console.log('📁 savedHandle type:', typeof savedHandle, savedHandle);
         
         if (savedHandle && savedHandle.kind === 'directory') {
-            console.log('📁 Handle trouvé dans IndexedDB');
             
             // Vérifier si on peut accéder au dossier
             try {
                 // Demander la permission si nécessaire
                 const permission = await savedHandle.requestPermission({ mode: 'readwrite' });
-                console.log('🔑 Permission:', permission);
                 
                 if (permission === 'granted') {
                     projectDirHandle = savedHandle;
-                    console.log('✅ Dossier restauré depuis la session précédente');
                     await loadAllProjects();
                     return;
-                } else {
-                    console.log('⚠️ Permission refusée');
                 }
             } catch (err) {
-                console.log('⚠️ Erreur accès dossier:', err.message, err);
+                // Permission refusée ou erreur d'accès
             }
-        } else {
-            console.log('⚠️ Pas de handle valide dans IndexedDB');
         }
     } catch (error) {
-        console.log('⚠️ Impossible de restaurer le dossier:', error.message, error);
+        console.error('Erreur chargement dossier:', error);
     }
-    
-    // Si pas de dossier sauvegardé ou permission refusée
-    console.log('⚠️ Aucun dossier configuré - l\'utilisateur doit sélectionner le dossier projet/');
 }
 
 // Demander l'accès au dossier projet/ (optionnel, via bouton)
@@ -5998,7 +6667,6 @@ async function loadAllProjects() {
                 }
             }
         }
-        console.log(`✅ ${db.length} projet(s) chargé(s) depuis le dossier`);
     } catch (error) {
         console.error('Erreur chargement projets:', error);
     }
@@ -6018,7 +6686,6 @@ async function saveProjectToFolder(project) {
         const writable = await fileHandle.createWritable();
         await writable.write(JSON.stringify(project, null, 2));
         await writable.close();
-        console.log('✅ Projet sauvegardé dans le dossier:', fileName);
     } catch (error) {
         console.error('Erreur sauvegarde fichier:', error);
     }
@@ -6031,7 +6698,6 @@ async function deleteProjectFile(project) {
     try {
         const fileName = project.name.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '.json';
         await projectDirHandle.removeEntry(fileName);
-        console.log('✅ Projet supprimé du dossier:', fileName);
     } catch (error) {
         console.error('Erreur suppression fichier:', error);
     }
@@ -6069,6 +6735,78 @@ function clearCalc(id) {
 function copyCode() {
     navigator.clipboard.writeText(document.getElementById('edit-code').value);
     customAlert('Code copié dans le presse-papiers ! Collez-le dans l\'IDE Arduino.', 'Succès');
+}
+
+// ========================================
+// GESTION DES SCREENSHOTS DE CODE ARDUINO
+// ========================================
+
+function displayCodeScreenshots(screenshots) {
+    const container = document.getElementById('code-screenshots-container');
+    if (!container) return;
+    
+    if (!screenshots || screenshots.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#64748b; padding:20px;">Aucun screenshot ajouté</p>';
+        return;
+    }
+    
+    container.innerHTML = screenshots.map((screenshot, index) => `
+        <div style="position:relative; border-radius:8px; overflow:hidden; border:2px solid #475569;">
+            <img src="${screenshot}" style="width:100%; height:auto; display:block;">
+            <button onclick="removeCodeScreenshot(${index})" 
+                    style="position:absolute; top:5px; right:5px; background:var(--danger); color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-size:12px; display:flex; align-items:center; justify-content:center;">
+                ×
+            </button>
+        </div>
+    `).join('');
+}
+
+function handleCodeScreenshots(event) {
+    const files = event.target.files;
+    const fileCount = files.length; // Sauvegarder la longueur avant
+    
+    if (!files || fileCount === 0) {
+        return;
+    }
+    
+    if (currentIdx === null || !db[currentIdx]) {
+        console.error('❌ Erreur: currentIdx non défini ou projet introuvable');
+        showToast('Erreur: projet non trouvé', 'error');
+        return;
+    }
+    
+    if (!db[currentIdx].codeScreenshots) {
+        db[currentIdx].codeScreenshots = [];
+    }
+    
+    // Convertir les images en base64 et les ajouter
+    let processed = 0;
+    Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            db[currentIdx].codeScreenshots.push(e.target.result);
+            processed++;
+            
+            // Une fois toutes les images traitées, mettre à jour l'affichage
+            if (processed === fileCount) {
+                displayCodeScreenshots(db[currentIdx].codeScreenshots);
+                saveProjectToFolder(db[currentIdx]);
+                showToast(`${fileCount} screenshot(s) ajouté(s) !`, 'success');
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Réinitialiser l'input
+    event.target.value = '';
+}
+
+function removeCodeScreenshot(index) {
+    if (!db[currentIdx].codeScreenshots) return;
+    
+    db[currentIdx].codeScreenshots.splice(index, 1);
+    displayCodeScreenshots(db[currentIdx].codeScreenshots);
+    saveProjectToFolder(db[currentIdx]);
 }
 
 // ========================================
@@ -6131,9 +6869,9 @@ document.addEventListener('keydown', (e) => {
     // Ctrl+S : Sauvegarder le projet en cours d'édition
     if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
-        const editModal = document.getElementById('modal-edit');
+        const editModal = document.getElementById('modal-project');
         if (editModal && editModal.style.display === 'flex' && currentIdx !== null) {
-            saveEdit();
+            saveProject();
             showToast('Projet sauvegardé !', 'success');
         }
     }
@@ -6244,7 +6982,7 @@ function showFavoriteComponents() {
 // ========================================
 
 function toggleFullscreenCode() {
-    const modal = document.getElementById('modal-edit');
+    const modal = document.getElementById('modal-project');
     const codeEditor = document.getElementById('edit-code');
     
     if (!modal || !codeEditor) return;
@@ -6590,9 +7328,6 @@ function copyPrerequisTable() {
 // ========================================
 
 window.onload = async () => {
-    let ip = localStorage.getItem('lab_ip');
-    if(ip) document.getElementById('home-status').innerText = "IP: " + ip;
-    
     // Charger le thème
     loadTheme();
     

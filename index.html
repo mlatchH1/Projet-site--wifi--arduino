@@ -9,6 +9,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <!-- jsPDF pour export PDF des rapports -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- docx pour export Word .docx (local) -->
+    <script src="vendor/docx.umd.js"></script>
     <style>
         :root {
             --bg: #0f172a; --card: #1e293b; --primary: #6366f1;
@@ -82,6 +84,7 @@
         }
         input[type="number"] {
             -moz-appearance: textfield;
+            appearance: textfield;
         }
 
         .btn { 
@@ -238,15 +241,6 @@
                 <button onclick="openModal('modal-settings-menu')" style="background:none; border:none; font-size:24px;">📶</button>
             </div>
         </div>
-        <!-- Panneau de contrôle désactivé temporairement -->
-        <!-- <div class="card" style="margin-top:20px;">
-            <h3>🕹️ Contrôle Direct</h3>
-            <p id="home-status" style="font-size:13px; color:var(--accent);">IP: Non configurée</p>
-            <div style="display:flex; gap:10px;">
-                <button class="btn" style="background:var(--success)" onclick="sendCmd('led?status=ON')">ALLUMER</button>
-                <button class="btn" style="background:var(--danger)" onclick="sendCmd('led?status=OFF')">ÉTEINDRE</button>
-            </div>
-        </div> -->
         
         <div style="margin-top:20px;">
             <div class="menu-option" onclick="switchView('view-boards')">
@@ -602,6 +596,17 @@ void executeCommand(String cmd) {
             
             <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">BUT DU PROJET</label>
             <textarea id="edit-goal" rows="3" placeholder="Décrivez l'objectif et les fonctionnalités de votre projet..."></textarea>
+
+            <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">ORGANISATION / ORGANIGRAMME</label>
+            <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                <input type="text" id="organisation-step-input" placeholder="Ajouter une étape" style="flex:1; padding:10px; background:#0f172a; border:1px solid var(--accent); color:white; border-radius:8px;">
+                <button class="btn" style="background:#3b82f6; width:auto; padding:10px 14px;" onclick="addOrganisationStep()">+ Ajouter</button>
+            </div>
+            <div id="organisation-steps" style="margin-top:10px;"></div>
+            <p style="margin:6px 0 0 0; font-size:11px; color:#94a3b8;">💡 Utilise “Ajouter” puis réorganise avec ↑ ↓. Les flèches s’affichent dans le Word.</p>
+
+            <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">TESTS / VALIDATION</label>
+            <textarea id="edit-tests" rows="3" placeholder="Décrivez les tests réalisés et les résultats..."></textarea>
             
             <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">CODE ARDUINO</label>
             <div style="display:flex; gap:10px; margin-bottom:10px;">
@@ -615,12 +620,29 @@ Mode WiFi : commandes simples pour exécution distante (ex: led 13 on, delay 100
             <button class="btn" style="background:#22c55e; margin-top:10px; display:inline-block;" id="btn-copy" onclick="copyCode()">📋 COPIER LE CODE</button>
             <button class="btn" style="background:var(--primary); margin-top:10px; display:none;" id="btn-execute" onclick="envoyerCode()">📤 EXÉCUTER VIA WIFI</button>
             
+            <!-- CODE ARDUINO (SCREENSHOTS) -->
+            <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:20px; display:block;">CODE ARDUINO (SCREENSHOTS)</label>
+            <p style="margin:8px 0; font-size:12px; color:#94a3b8;">
+                📎 Ajoutez des captures d'écran de votre code Arduino. Ces images apparaîtront dans le PDF généré.
+            </p>
+            <p style="margin:0 0 10px 0; font-size:11px; color:#64748b;">
+                💡 Vous pouvez sélectionner plusieurs images à la fois
+            </p>
+            <div id="code-screenshots-container" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:15px; margin-bottom:15px;">
+                <p style="text-align:center; color:#64748b; padding:20px;">Aucun screenshot ajouté</p>
+            </div>
+            <input type="file" id="code-screenshots-input" accept="image/*" multiple style="display:none;" onchange="handleCodeScreenshots(event)">
+            <button class="btn" style="background:#3b82f6; margin-top:0;" onclick="document.getElementById('code-screenshots-input').click()">
+                📎 AJOUTER DES SCREENSHOTS DE CODE
+            </button>
+            
             <label style="color:var(--accent); font-size:11px; font-weight:bold; margin-top:15px; display:block;">CONCLUSION PERSONNELLE</label>
             <textarea id="edit-conclusion" rows="3" placeholder="Réflexion personnelle sur le projet, difficultés rencontrées, améliorations possibles..."></textarea>
             
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px;">
                 <button class="btn" style="background:#8b5cf6;" onclick="exportProjectPDF()">📄 GÉNÉRER RAPPORT PDF</button>
                 <button class="btn" style="background:#f59e0b;" onclick="exportExcelProfessional(db[currentIdx])">📊 LISTE ACHATS EXCEL</button>
+                <button class="btn" style="background:#10b981;" onclick="exportProjectDOCX()">📝 EXPORT WORD (.DOCX)</button>
             </div>
             
             <button class="btn" style="background:none; color:var(--danger); border:1px solid var(--danger); margin-top:10px;" onclick="deleteFolder()">SUPPRIMER LE PROJET</button>

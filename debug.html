@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Debug ESP32 Lab</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .info { color: #00f; }
+        pre { background: #000; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Diagnostic ESP32 Lab Pro</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(msg, type = 'info') {
+            const p = document.createElement('p');
+            p.className = type;
+            p.textContent = msg;
+            results.appendChild(p);
+            console.log(msg);
+        }
+        
+        log('=== DÉBUT DU DIAGNOSTIC ===', 'info');
+        
+        // Test 1: localStorage
+        try {
+            localStorage.setItem('test', 'ok');
+            const val = localStorage.getItem('test');
+            localStorage.removeItem('test');
+            log('✅ localStorage fonctionne', 'success');
+        } catch (e) {
+            log('❌ localStorage ne fonctionne pas: ' + e.message, 'error');
+        }
+        
+        // Test 2: Chargement du script
+        log('\n📦 Chargement de script.js...', 'info');
+        const script = document.createElement('script');
+        script.src = 'script.js';
+        
+        script.onload = () => {
+            log('✅ script.js chargé avec succès', 'success');
+            
+            // Test 3: Variables globales
+            try {
+                log('\n🔍 Vérification des variables globales:', 'info');
+                log('  db = ' + (typeof db !== 'undefined' ? '✅' : '❌'), typeof db !== 'undefined' ? 'success' : 'error');
+                log('  currentIdx = ' + (typeof currentIdx !== 'undefined' ? '✅' : '❌'), typeof currentIdx !== 'undefined' ? 'success' : 'error');
+                log('  projectDirHandle = ' + (typeof projectDirHandle !== 'undefined' ? '✅' : '❌'), typeof projectDirHandle !== 'undefined' ? 'success' : 'error');
+            } catch (e) {
+                log('❌ Erreur variables: ' + e.message, 'error');
+            }
+            
+            // Test 4: Fonctions critiques
+            try {
+                log('\n🔧 Vérification des fonctions:', 'info');
+                const funcs = ['switchView', 'openModal', 'closeModal', 'customAlert', 'toggleTheme', 'renderFolders', 'saveProject'];
+                funcs.forEach(f => {
+                    const exists = typeof window[f] === 'function' || typeof eval('typeof ' + f) === 'function';
+                    log('  ' + f + ' = ' + (exists ? '✅' : '❌'), exists ? 'success' : 'error');
+                });
+            } catch (e) {
+                log('❌ Erreur fonctions: ' + e.message, 'error');
+            }
+            
+            // Test 5: Exécution window.onload
+            log('\n⚙️ Test window.onload...', 'info');
+            try {
+                if (typeof window.onload === 'function') {
+                    log('✅ window.onload existe', 'success');
+                } else {
+                    log('❌ window.onload n\'existe pas!', 'error');
+                }
+            } catch (e) {
+                log('❌ Erreur window.onload: ' + e.message, 'error');
+            }
+            
+            log('\n=== DIAGNOSTIC TERMINÉ ===', 'info');
+        };
+        
+        script.onerror = (e) => {
+            log('❌ ERREUR FATALE: Impossible de charger script.js', 'error');
+            log('Détails: ' + JSON.stringify(e), 'error');
+        };
+        
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>
